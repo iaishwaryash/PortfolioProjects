@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="/Users/aishwarya/Desktop/Study SQL/PortfolioProject.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="6860"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="0" parent="2"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><current_table name="4,11:mainCovidDeaths"/><default_encoding codec=""/><browse_table_settings><table schema="main" name="CovidDeaths" show_row_id="0" encoding="" plot_x_axis="" unlock_view_pk="_rowid_"><sort/><column_widths><column index="1" value="56"/><column index="2" value="57"/><column index="3" value="69"/><column index="4" value="55"/><column index="5" value="75"/><column index="6" value="68"/><column index="7" value="66"/><column index="8" value="124"/><column index="9" value="74"/><column index="10" value="72"/><column index="11" value="129"/><column index="12" value="133"/><column index="13" value="132"/><column index="14" value="189"/><column index="15" value="139"/><column index="16" value="137"/><column index="17" value="195"/><column index="18" value="102"/><column index="19" value="72"/><column index="20" value="138"/><column index="21" value="82"/><column index="22" value="147"/><column index="23" value="131"/><column index="24" value="196"/><column index="25" value="140"/><column index="26" value="206"/><column index="27" value="65"/><column index="28" value="63"/><column index="29" value="145"/></column_widths><filter_values/><conditional_formats/><row_id_formats/><display_formats/><hidden_columns/><plot_y_axes/><global_filter/></table></browse_table_settings></tab_browse><tab_sql><sql name="SQL 1">SELECT Location, date, total_cases, new_cases, total_deaths, population
+from CovidDeaths
+order by 1,2;
+
+--- Looking at Total Cases vs Total Deaths
+---Shows the likelihood of dying if you contract COVID
+SELECT Location, date, total_cases, new_cases, total_deaths, (total_deaths/total_cases)*100 as DeathPercentage
+from CovidDeaths
+where location like '%INDIA%' 
+order by 1,2;
+
+--- Looking at Total Cases vs Population
+SELECT Location, date, total_cases, population, (total_cases/population)*100 as PercentPopulationInfected
+from CovidDeaths
+--where location like '%INDIA%' 
+order by 1,2;
+
+--Looking at countries with highest infection rate compared to population
+Select location, total_cases, population, MAX(total_cases) as HighestInfectionCount, max((total_cases/population))*100 as PercentPopulationInfected
+From CovidDeaths
+--WHERE location like &quot;India&quot;
+GROUP by  location, population
+order by PercentPopulationInfected DESC;
+
+--Looking at countries with the highest death count per population
+--Let's break things down by Continent
+
+Select CONTINENT, max(cast(total_deaths as int)) as TotalDeathCount
+--Select CONTINENT, max(total_deaths) as TotalDeathCount
+From CovidDeaths
+WHERE CONTINENT is not NULL
+GROUP by  CONTINENT
+order by TotalDeathCount DESC;
+
+Select continent, max(cast(total_deaths as int)) as TotalDeathCount
+--Select CONTINENT, max(total_deaths) as TotalDeathCount
+From CovidDeaths
+WHERE CONTINENT is  not NULL
+GROUP by  continent
+order by TotalDeathCount DESC;
+
+--Showing continents with the highest death count per population
+
+Select continent, max(cast(total_deaths as int)) as TotalDeathCount
+--Select CONTINENT, max(total_deaths) as TotalDeathCount
+From CovidDeaths
+WHERE CONTINENT is  not NULL
+GROUP by  continent
+order by TotalDeathCount DESC;
+
+
+-- GLOBAL NUMBERS
+
+SELECT  date, total_cases, total_deaths, population, (total_deaths/population)*100 as DeathPercentage
+from CovidDeaths
+--where location like '%INDIA%'
+WHERE CONTINENT is  not NULL 
+GROUP BY date
+order by 1,2;
+
+SELECT sum(new_cases) as total_cases, sum(new_deaths) as total_deaths, (sum(new_deaths)/sum(new_cases))*100 as DeathPercentage
+from CovidDeaths
+--where location like '%INDIA%'
+WHERE CONTINENT is  not NULL 
+--GROUP BY date
+order by 1,2;
+
+--COVID VACCINATIONS
+--Looking at Total Population vs Total Vaccinations
+--JOIN
+
+SELECT CD.continent, CD.location, CD.date, CD.population, CV.new_vaccinations
+FROM CovidDeaths CD 
+JOIN CovidVaccinations CV
+on CD.location = CV.location AND CD.date = CV.date
+where CD.continent is not NULL
+order by 5 DESC;
+
+
+--USE CTE
+
+
+With PopvsVac (continent, location, Date, population, new_vaccinations, RollingPeopleVaccinated)
+as
+(
+SELECT CD.continent, CD.location, CD.date, CD.population, CV.new_vaccinations, SUM(CV.new_vaccinations) OVER (Partition by  CD.location  order by CD.location, CD.date) as RollingPeopleVaccinated
+--(RollingPeopleVaccinated/population)*100
+FROM CovidDeaths CD 
+JOIN CovidVaccinations CV
+on CD.location = CV.location AND CD.date = CV.date
+where CD.continent is not NULL
+--order by 2,3
+)
+Select *, (RollingPeopleVaccinated/population) *100
+from PopvsVac;
+
+
+
+--Temp TABLE
+
+DROP Table if exists #PercentPopulationVaccinated
+Create Table #PercentPopulationVaccinated
+(
+Continent nvarchar(255),
+Location nvarchar(255),
+Date datetime,
+Population numeric,
+New_vaccinations  umeric,
+RollingPeopleVaccinated NUMERIC
+)
+Insert into #PercentPopulationVaccinated
+SELECT CD.continent, CD.location, CD.date, CD.population, CV.new_vaccinations, SUM(CV.new_vaccinations) OVER (Partition by  CD.location  order by CD.location, CD.date) as RollingPeopleVaccinated
+--(RollingPeopleVaccinated/population)*100
+FROM CovidDeaths CD 
+JOIN CovidVaccinations CV
+on CD.location = CV.location AND CD.date = CV.date
+where CD.continent is not NULL
+--order by 2,3
+)
+Select *, (RollingPeopleVaccinated/population) *100
+from #PercentPopulationVaccinated;
+
+--Creating  view to store data for later visualization
+
+Create View PercentPopulationVaccinated as
+SELECT CD.continent, CD.location, CD.date, CD.population, CV.new_vaccinations, SUM(CV.new_vaccinations) OVER (Partition by  CD.location  order by CD.location, CD.date) as RollingPeopleVaccinated
+--(RollingPeopleVaccinated/population)*100
+FROM CovidDeaths CD 
+JOIN CovidVaccinations CV
+on CD.location = CV.location AND CD.date = CV.date
+where CD.continent is not NULL
+order by 2,3
+
+
+Select *
+from PercentPopulationVaccinated
+
+</sql><current_tab id="0"/></tab_sql></sqlb_project>
